@@ -2,7 +2,7 @@
 
 ## Roadmap
 
-- [ ] Base blockchain app
+- [x] Base blockchain app setup
 - [ ] BadgerDB
 - [ ] Transactions
 - [ ] Basic Wallet
