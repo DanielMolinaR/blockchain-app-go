@@ -3,6 +3,7 @@
 ## Roadmap
 
 - [x] Base blockchain app setup
+- [x] Proof of Work
 - [ ] BadgerDB
 - [ ] Transactions
 - [ ] Basic Wallet
