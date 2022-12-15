@@ -2,7 +2,6 @@ package blockchain
 
 import (
 	"fmt"
-	"strconv"
 
 	"github.com/dgraph-io/badger"
 )
@@ -14,10 +13,15 @@ type Blockchain struct {
 	Databse  *badger.DB
 }
 
+type BlockchainIterator struct {
+	CurrentHash []byte
+	Database    *badger.DB
+}
+
 func InitBlockchain() *Blockchain {
 	var lastHash []byte
 
-	opts := badger.DefaultOptions()
+	opts := badger.DefaultOptions("")
 	opts.Dir = dbPath
 	opts.ValueDir = dbPath
 
@@ -83,14 +87,29 @@ func (chain *Blockchain) AddBlock(data string) {
 	HandleError(err)
 }
 
-func (chain *Blockchain) DisplayData() {
-	for _, block := range chain.Blocks {
-		fmt.Printf("Previous Hash: %x\n", block.PrevHash)
-		fmt.Printf("Data in block: %s\n", block.Data)
-		fmt.Printf("Hash: %x\n", block.Hash)
+func (chain *Blockchain) Iterator() *BlockchainIterator {
+	return &BlockchainIterator{chain.LastHash, chain.Databse}
+}
 
-		pow := NewProof(block)
-		fmt.Printf("PoW: %s\n", strconv.FormatBool(pow.Validate()))
-		fmt.Println()
-	}
+func (iter *BlockchainIterator) Next() *Block {
+	var block *Block
+
+	err := iter.Database.View(func(txn *badger.Txn) error {
+		item, err := txn.Get(iter.CurrentHash)
+		HandleError(err)
+		var encodedBlock []byte
+		err = item.Value(func(val []byte) error {
+			encodedBlock = val
+			return nil
+		})
+
+		block = Deserialize(encodedBlock)
+
+		return err
+	})
+	HandleError(err)
+
+	iter.CurrentHash = block.PrevHash
+
+	return block
 }
