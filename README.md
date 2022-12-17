@@ -5,7 +5,7 @@
 - [x] Base blockchain app setup
 - [x] Proof of Work
 - [x] BadgerDB
-- [ ] CLI
+- [x] CLI
 - [ ] Transactions
 - [ ] Basic Wallet
 - [ ] Digital Signatures
