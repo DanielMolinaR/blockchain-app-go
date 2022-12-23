@@ -1,16 +1,23 @@
 package blockchain
 
 import (
+	"encoding/hex"
 	"fmt"
+	"os"
+	"runtime"
 
 	"github.com/dgraph-io/badger"
 )
 
-const dbPath = "./tmp/blocks"
+const (
+	dbPath      = "./tmp/blocks"
+	dbFile      = "./tmp/blocks/MANIFEST"           // This file is used to check if the blockchain database already exists
+	genesisData = "First Transasction from Genesis" // Arbitray data
+)
 
 type Blockchain struct {
 	LastHash []byte
-	Databse  *badger.DB
+	Database *badger.DB
 }
 
 type BlockchainIterator struct {
@@ -18,37 +25,44 @@ type BlockchainIterator struct {
 	Database    *badger.DB
 }
 
-func InitBlockchain() *Blockchain {
-	var lastHash []byte
+func DbExists() bool {
+	if _, err := os.Stat(dbFile); os.IsNotExist(err) {
+		return false
+	}
+	return true
+}
 
+func OpenDatabase() *badger.DB {
 	opts := badger.DefaultOptions("")
 	opts.Dir = dbPath
 	opts.ValueDir = dbPath
 
 	db, err := badger.Open(opts)
 	HandleError(err)
+	return db
+}
+
+func InitBlockchain(adress string) *Blockchain {
+	if DbExists() {
+		fmt.Println("Blockchain already exists")
+		runtime.Goexit()
+	}
+
+	var lastHash []byte
+
+	db := OpenDatabase()
 
 	// Update lets make Read and Write transactions into the database
 	// We are sending an enclosure which takes in a pointer to a badger transaction
-	err = db.Update(func(txn *badger.Txn) error {
-		if _, err := txn.Get([]byte("lh")); err == badger.ErrKeyNotFound {
-			fmt.Println("No existing blockchain found")
-			genesis := genesis()
-			fmt.Println("Genesis proved")
-			err = txn.Set(genesis.Hash, genesis.Serialize())
-			HandleError(err)
-			err = txn.Set([]byte("lh"), genesis.Hash)
+	err := db.Update(func(txn *badger.Txn) error {
+		cbtx := CoinbaseTx(adress, genesisData)
+		genesis := genesis(cbtx)
+		fmt.Println("Genesis created")
+		err := txn.Set(genesis.Hash, genesis.Serialize())
+		HandleError(err)
+		err = txn.Set([]byte("lh"), genesis.Hash)
 
-			lastHash = genesis.Hash
-
-		} else {
-			item, err := txn.Get([]byte("lh"))
-			HandleError(err)
-			err = item.Value(func(val []byte) error {
-				lastHash = val
-				return nil
-			})
-		}
+		lastHash = genesis.Hash
 
 		return err
 	})
@@ -58,10 +72,36 @@ func InitBlockchain() *Blockchain {
 	return &Blockchain{lastHash, db}
 }
 
-func (chain *Blockchain) AddBlock(data string) {
+func ContinueBlockchain(address string) *Blockchain {
+	if DbExists() == false {
+		fmt.Println("Blockchain already exists")
+		runtime.Goexit()
+	}
+
 	var lastHash []byte
 
-	err := chain.Databse.View(func(txn *badger.Txn) error {
+	db := OpenDatabase()
+
+	err := db.Update(func(txn *badger.Txn) error {
+		item, err := txn.Get([]byte("lh"))
+		HandleError(err)
+		err = item.Value(func(val []byte) error {
+			lastHash = val
+			return nil
+		})
+		return err
+	})
+
+	HandleError(err)
+
+	return &Blockchain{lastHash, db}
+
+}
+
+func (chain *Blockchain) AddBlock(transactions []*Transaction) {
+	var lastHash []byte
+
+	err := chain.Database.View(func(txn *badger.Txn) error {
 		item, err := txn.Get([]byte("lh"))
 		HandleError(err)
 		err = item.Value(func(val []byte) error {
@@ -72,9 +112,9 @@ func (chain *Blockchain) AddBlock(data string) {
 	})
 	HandleError(err)
 
-	newBlock := createBlock(data, lastHash)
+	newBlock := createBlock(transactions, lastHash)
 
-	err = chain.Databse.Update(func(txn *badger.Txn) error {
+	err = chain.Database.Update(func(txn *badger.Txn) error {
 		err = txn.Set(newBlock.Hash, newBlock.Serialize())
 		HandleError(err)
 		err = txn.Set([]byte("lh"), newBlock.Hash)
@@ -88,7 +128,7 @@ func (chain *Blockchain) AddBlock(data string) {
 }
 
 func (chain *Blockchain) Iterator() *BlockchainIterator {
-	return &BlockchainIterator{chain.LastHash, chain.Databse}
+	return &BlockchainIterator{chain.LastHash, chain.Database}
 }
 
 func (iter *BlockchainIterator) Next() *Block {
@@ -112,4 +152,101 @@ func (iter *BlockchainIterator) Next() *Block {
 	iter.CurrentHash = block.PrevHash
 
 	return block
+}
+
+/*
+	This method finds the unused transactions assign to an user
+ 	unused transactions are transactions taht have output which are not referenced
+	other inputs. If an output hasn't been used means that those transactions
+	still exits for a certain user so by counting all the used transaction that are
+	assigned to a certain user we can find how many tokens are assigned to that user.const
+
+	FindUnspentTransactions and FindUnspentTxO are made to find the balance of the user account
+*/
+func (chain *Blockchain) FindUnspentTransactions(address string) []Transaction {
+	var unspentTxs []Transaction
+
+	spentTxos := make(map[string][]int) // map where the keys are string and the values are a slice of ints
+
+	iter := chain.Iterator()
+
+	for {
+		block := iter.Next()
+
+		for _, tx := range block.Transactions {
+			txID := hex.EncodeToString(tx.ID)
+
+		Outputs: // label used to break out the for loop of Outputs and not from the other two for loops
+			for outIdx, out := range tx.Outputs {
+				if spentTxos[txID] != nil {
+					for _, spentOut := range spentTxos[txID] {
+						if spentOut == outIdx {
+							continue Outputs
+						}
+					}
+				}
+				if out.CanBeUnlocked(address) {
+					unspentTxs = append(unspentTxs, *tx)
+				}
+
+			}
+
+			if tx.IsCoinbase() == false {
+				for _, in := range tx.Inputs {
+					if in.CanUnlock(address) { // If we can unlock it means that the transaction is related to the user
+						inTxID := hex.EncodeToString(in.ID)
+						spentTxos[inTxID] = append(spentTxos[inTxID], in.Out)
+					}
+				}
+			}
+		}
+
+		if len(block.PrevHash) == 0 {
+			break
+		}
+	}
+
+	return unspentTxs
+}
+
+func (chain *Blockchain) FindUnspentTxO(address string) []TxOutput {
+	var UnspentTxOs []TxOutput
+	unspentTransactions := chain.FindUnspentTransactions(address)
+
+	for _, tx := range unspentTransactions {
+		for _, out := range tx.Outputs {
+			if out.CanBeUnlocked(address) {
+				UnspentTxOs = append(UnspentTxOs, out)
+			}
+		}
+	}
+
+	return UnspentTxOs
+}
+
+/*
+	Enables the creation of normal transactions which are not coinbase
+*/
+func (chain *Blockchain) FindSPendableOutputs(address string, amount int) (int, map[string][]int) {
+	unspentOuts := make(map[string][]int)
+	unspentTxs := chain.FindUnspentTransactions(address)
+	accumulated := 0
+
+Work:
+	for _, tx := range unspentTxs {
+		txID := hex.EncodeToString(tx.ID)
+
+		for outIdx, out := range tx.Outputs {
+			if out.CanBeUnlocked(address) && accumulated < amount {
+				accumulated += out.Value
+				unspentOuts[txID] = append(unspentOuts[txID], outIdx)
+
+				if accumulated >= amount {
+					break Work
+				}
+			}
+		}
+	}
+
+	return accumulated, unspentOuts
 }
