@@ -6,7 +6,7 @@
 - [x] Proof of Work
 - [x] BadgerDB
 - [x] CLI
-- [ ] Transactions
+- [x] Transactions
 - [ ] Basic Wallet
 - [ ] Digital Signatures
 - [ ] UTXO Persintance layer
