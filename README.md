@@ -7,7 +7,8 @@
 - [x] BadgerDB
 - [x] CLI
 - [x] Transactions
-- [ ] Basic Wallet
+- [x] Basic Wallet
+- [ ] Persistance
 - [ ] Digital Signatures
 - [ ] UTXO Persintance layer
 - [ ] Merkle Tree
