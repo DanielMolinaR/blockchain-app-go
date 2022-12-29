@@ -8,7 +8,7 @@
 - [x] CLI
 - [x] Transactions
 - [x] Basic Wallet
-- [ ] Persistance
+- [x] Persistance
 - [ ] Digital Signatures
 - [ ] UTXO Persintance layer
 - [ ] Merkle Tree
