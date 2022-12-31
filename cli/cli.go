@@ -24,7 +24,6 @@ func (cli *CommandLine) printUsage() {
 	fmt.Println(" listaddresses - Lists the addresses in our wallet file")
 }
 
-// Validate arguments pass through the command line
 func (cli *CommandLine) validateArgs() {
 	if len(os.Args) < 2 {
 		cli.printUsage()
@@ -57,11 +56,13 @@ func (cli *CommandLine) printChain() {
 	for {
 		block := iter.Next()
 
-		fmt.Printf("Previous Hash: %x\n", block.PrevHash)
 		fmt.Printf("Hash: %x\n", block.Hash)
-
+		fmt.Printf("Prev. hash: %x\n", block.PrevHash)
 		pow := blockchain.NewProof(block)
 		fmt.Printf("PoW: %s\n", strconv.FormatBool(pow.Validate()))
+		for _, tx := range block.Transactions {
+			fmt.Println(tx)
+		}
 		fmt.Println()
 
 		if len(block.PrevHash) == 0 {
@@ -71,19 +72,25 @@ func (cli *CommandLine) printChain() {
 }
 
 func (cli *CommandLine) createBlockchain(address string) {
+	validateAddress(address)
+
 	chain := blockchain.InitBlockchain(address)
 	chain.Database.Close()
 	fmt.Println("Finished!")
 }
 
 func (cli *CommandLine) getBalance(address string) {
+	validateAddress(address)
+
 	chain := blockchain.ContinueBlockchain(address)
 	defer chain.Database.Close()
 
 	balance := 0
-	UTxOs := chain.FindUnspentTxO(address)
+	pubKeyHash := wallet.Base58Decode([]byte(address))
+	pubKeyHash = pubKeyHash[1 : len(pubKeyHash)-4]
+	UTXOs := chain.FindUnspentTxO(pubKeyHash)
 
-	for _, out := range UTxOs {
+	for _, out := range UTXOs {
 		balance += out.Value
 	}
 
@@ -91,13 +98,21 @@ func (cli *CommandLine) getBalance(address string) {
 }
 
 func (cli *CommandLine) send(from, to string, amount int) {
+	validateAddress(to)
+	validateAddress(from)
+
 	chain := blockchain.ContinueBlockchain(from)
 	defer chain.Database.Close()
 
 	tx := blockchain.NewTransaction(from, to, amount, chain)
-
 	chain.AddBlock([]*blockchain.Transaction{tx})
-	fmt.Println("Sent successfully!")
+	fmt.Println("Success!")
+}
+
+func validateAddress(address string) {
+	if !wallet.ValidateAddress(address) {
+		log.Panic("Address is not Valid")
+	}
 }
 
 func (cli *CommandLine) Run() {

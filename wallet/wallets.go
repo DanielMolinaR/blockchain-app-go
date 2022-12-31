@@ -45,7 +45,7 @@ func (wallets *Wallets) GetAllAddresses() []string {
 	return addresses
 }
 
-func (wallets Wallets) getWallet(address string) Wallet {
+func (wallets Wallets) GetWallet(address string) Wallet {
 	return *wallets.Wallets[address]
 }
 
