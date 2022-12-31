@@ -9,7 +9,7 @@
 - [x] Transactions
 - [x] Basic Wallet
 - [x] Persistance
-- [ ] Digital Signatures
+- [x] Digital Signatures
 - [ ] UTXO Persintance layer
 - [ ] Merkle Tree
 - [ ] Network Module
