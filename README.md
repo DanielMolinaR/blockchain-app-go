@@ -10,6 +10,6 @@
 - [x] Basic Wallet
 - [x] Persistance
 - [x] Digital Signatures
-- [ ] UTXO Persintance layer
+- [x] UTXO Persintance layer
 - [ ] Merkle Tree
 - [ ] Network Module

@@ -101,7 +101,7 @@ func ContinueBlockchain(address string) *Blockchain {
 
 }
 
-func (chain *Blockchain) AddBlock(transactions []*Transaction) {
+func (chain *Blockchain) AddBlock(transactions []*Transaction) *Block {
 	var lastHash []byte
 
 	err := chain.Database.View(func(txn *badger.Txn) error {
@@ -128,6 +128,8 @@ func (chain *Blockchain) AddBlock(transactions []*Transaction) {
 	})
 
 	HandleError(err)
+
+	return newBlock
 }
 
 func (chain *Blockchain) Iterator() *BlockchainIterator {
@@ -163,13 +165,10 @@ func (iter *BlockchainIterator) Next() *Block {
 	other inputs. If an output hasn't been used means that those transactions
 	still exits for a certain user so by counting all the used transaction that are
 	assigned to a certain user we can find how many tokens are assigned to that user.const
-
-	FindUnspentTransactions and FindUnspentTxO are made to find the balance of the user account
 */
-func (chain *Blockchain) FindUnspentTransactions(pubKeyHash []byte) []Transaction {
-	var unspentTxs []Transaction
-
-	spentTxos := make(map[string][]int) // map where the keys are string and the values are a slice of ints
+func (chain *Blockchain) FindUnspentTxO() map[string]TxOutputs {
+	UTXO := make(map[string]TxOutputs)
+	spentTXOs := make(map[string][]int)
 
 	iter := chain.Iterator()
 
@@ -179,27 +178,23 @@ func (chain *Blockchain) FindUnspentTransactions(pubKeyHash []byte) []Transactio
 		for _, tx := range block.Transactions {
 			txID := hex.EncodeToString(tx.ID)
 
-		Outputs: // label used to break out the for loop of Outputs and not from the other two for loops
+		Outputs:
 			for outIdx, out := range tx.Outputs {
-				if spentTxos[txID] != nil {
-					for _, spentOut := range spentTxos[txID] {
+				if spentTXOs[txID] != nil {
+					for _, spentOut := range spentTXOs[txID] {
 						if spentOut == outIdx {
 							continue Outputs
 						}
 					}
 				}
-				if out.IsLockedWithKey(pubKeyHash) {
-					unspentTxs = append(unspentTxs, *tx)
-				}
-
+				outs := UTXO[txID]
+				outs.Outputs = append(outs.Outputs, out)
+				UTXO[txID] = outs
 			}
-
 			if tx.IsCoinbase() == false {
 				for _, in := range tx.Inputs {
-					if in.UsesKey(pubKeyHash) { // If we can unlock it means that the transaction is related to the user
-						inTxID := hex.EncodeToString(in.ID)
-						spentTxos[inTxID] = append(spentTxos[inTxID], in.Out)
-					}
+					inTxID := hex.EncodeToString(in.ID)
+					spentTXOs[inTxID] = append(spentTXOs[inTxID], in.Out)
 				}
 			}
 		}
@@ -208,50 +203,7 @@ func (chain *Blockchain) FindUnspentTransactions(pubKeyHash []byte) []Transactio
 			break
 		}
 	}
-
-	return unspentTxs
-}
-
-func (chain *Blockchain) FindUnspentTxO(pubKeyHash []byte) []TxOutput {
-	var UnspentTxOs []TxOutput
-	unspentTransactions := chain.FindUnspentTransactions(pubKeyHash)
-
-	for _, tx := range unspentTransactions {
-		for _, out := range tx.Outputs {
-			if out.IsLockedWithKey(pubKeyHash) {
-				UnspentTxOs = append(UnspentTxOs, out)
-			}
-		}
-	}
-
-	return UnspentTxOs
-}
-
-/*
-	Enables the creation of normal transactions which are not coinbase
-*/
-func (chain *Blockchain) FindSPendableOutputs(pubKeyHash []byte, amount int) (int, map[string][]int) {
-	unspentOuts := make(map[string][]int)
-	unspentTxs := chain.FindUnspentTransactions(pubKeyHash)
-	accumulated := 0
-
-Work:
-	for _, tx := range unspentTxs {
-		txID := hex.EncodeToString(tx.ID)
-
-		for outIdx, out := range tx.Outputs {
-			if out.IsLockedWithKey(pubKeyHash) && accumulated < amount {
-				accumulated += out.Value
-				unspentOuts[txID] = append(unspentOuts[txID], outIdx)
-
-				if accumulated >= amount {
-					break Work
-				}
-			}
-		}
-	}
-
-	return accumulated, unspentOuts
+	return UTXO
 }
 
 func (chain *Blockchain) FindTransaction(ID []byte) (Transaction, error) {
