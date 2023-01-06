@@ -46,29 +46,20 @@ func (tx *Transaction) Hash() []byte {
 	return hash[:]
 }
 
-func (tx *Transaction) SetId() {
-	var encoded bytes.Buffer
-	var hash [32]byte // Hash based on the bytes that represent our tx
-
-	encoder := gob.NewEncoder(&encoded)
-	err := encoder.Encode(tx)
-	HandleError(err)
-
-	hash = sha256.Sum256(encoded.Bytes())
-	tx.ID = hash[:]
-
-}
-
 func CoinbaseTx(to, data string) *Transaction {
 	if data == "" {
-		data = fmt.Sprintf("Coins to %s", to)
+		randData := make([]byte, 20)
+		_, err := rand.Read(randData)
+		HandleError(err)
+
+		data = fmt.Sprintf("%x", randData)
 	}
 
 	txIn := TxInput{[]byte{}, -1, nil, []byte(data)} // Since is not referecing to any Output the ID is empty and the OUT int -1
 	txOut := NewTxOutput(100, to)
 
 	tx := Transaction{nil, []TxInput{txIn}, []TxOutput{*txOut}}
-	tx.SetId()
+	tx.ID = tx.Hash()
 
 	return &tx
 }
@@ -102,7 +93,7 @@ func NewTransaction(from, to string, amount int, utxoSet *UTXOSet) *Transaction 
 	outputs = append(outputs, *NewTxOutput(amount, to))
 
 	if accumulated > amount {
-		outputs = append(outputs, *NewTxOutput(accumulated-amount, to))
+		outputs = append(outputs, *NewTxOutput(accumulated-amount, from))
 	}
 
 	tx := Transaction{nil, inputs, outputs}
@@ -113,7 +104,7 @@ func NewTransaction(from, to string, amount int, utxoSet *UTXOSet) *Transaction 
 }
 
 func (tx *Transaction) IsCoinbase() bool {
-	return len(tx.Inputs) == 1 && len(tx.Inputs[0].ID) == 0 && tx.Inputs[0].Out == 0
+	return len(tx.Inputs) == 1 && len(tx.Inputs[0].ID) == 0 && tx.Inputs[0].Out == -1
 }
 
 // The way to sign the transaction is thorugh the input by accessing to the reference outputs of them
@@ -129,9 +120,9 @@ func (tx *Transaction) Sign(privKey ecdsa.PrivateKey, prevTxs map[string]Transac
 	txCopy := tx.TrimmedCopy()
 
 	for inId, in := range txCopy.Inputs {
-		prevTx := prevTxs[hex.EncodeToString(in.ID)]
+		prevTX := prevTxs[hex.EncodeToString(in.ID)]
 		txCopy.Inputs[inId].Signature = nil
-		txCopy.Inputs[inId].PubKey = prevTx.Outputs[in.Out].PubKeyHash
+		txCopy.Inputs[inId].PubKey = prevTX.Outputs[in.Out].PubKeyHash
 		txCopy.ID = txCopy.Hash()
 		txCopy.Inputs[inId].PubKey = nil
 
@@ -140,6 +131,7 @@ func (tx *Transaction) Sign(privKey ecdsa.PrivateKey, prevTxs map[string]Transac
 		signature := append(r.Bytes(), s.Bytes()...)
 
 		tx.Inputs[inId].Signature = signature
+
 	}
 }
 
@@ -148,15 +140,17 @@ func (tx *Transaction) Verify(prevTxs map[string]Transaction) bool {
 		return true
 	}
 
-	if !tx.checkIfInputsExists(prevTxs) {
-		log.Panic("ERROR: Previous transaction does not exist")
+	for _, in := range tx.Inputs {
+		if prevTxs[hex.EncodeToString(in.ID)].ID == nil {
+			log.Panic("Previous transaction not correct")
+		}
 	}
 
 	txCopy := tx.TrimmedCopy()
 	curve := elliptic.P256()
 
 	// We want to iterate through each of our Outputs and check the signature on each of them
-	for inId, in := range txCopy.Inputs {
+	for inId, in := range tx.Inputs {
 		prevTx := prevTxs[hex.EncodeToString(in.ID)]
 		txCopy.Inputs[inId].Signature = nil
 		txCopy.Inputs[inId].PubKey = prevTx.Outputs[in.Out].PubKeyHash

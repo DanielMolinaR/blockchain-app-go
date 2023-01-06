@@ -18,15 +18,11 @@ type UTXOSet struct {
 	Blockchain *Blockchain
 }
 
-/*
-	Enables the creation of normal transactions which are not coinbase
-*/
-func (utxoSet UTXOSet) FindSpendableOutputs(pubKeyHash []byte, amount int) (int, map[string][]int) {
-	var v []byte
-
+// Enables the creation of normal transactions which are not coinbase
+func (u UTXOSet) FindSpendableOutputs(pubKeyHash []byte, amount int) (int, map[string][]int) {
 	unspentOuts := make(map[string][]int)
 	accumulated := 0
-	db := utxoSet.Blockchain.Database
+	db := u.Blockchain.Database
 
 	err := db.View(func(txn *badger.Txn) error {
 		opts := badger.DefaultIteratorOptions
@@ -37,10 +33,7 @@ func (utxoSet UTXOSet) FindSpendableOutputs(pubKeyHash []byte, amount int) (int,
 		for it.Seek(utxoPrefix); it.ValidForPrefix(utxoPrefix); it.Next() {
 			item := it.Item()
 			k := item.Key()
-			err := item.Value(func(val []byte) error {
-				v = val
-				return nil
-			})
+			v, err := item.Value()
 			HandleError(err)
 			k = bytes.TrimPrefix(k, utxoPrefix)
 			txID := hex.EncodeToString(k)
@@ -59,11 +52,10 @@ func (utxoSet UTXOSet) FindSpendableOutputs(pubKeyHash []byte, amount int) (int,
 	return accumulated, unspentOuts
 }
 
-func (utxoSet UTXOSet) FindUnspentTxO(pubKeyHash []byte) []TxOutput {
+func (u UTXOSet) FindUnspentTxO(pubKeyHash []byte) []TxOutput {
 	var UTXOs []TxOutput
-	var v []byte
 
-	db := utxoSet.Blockchain.Database
+	db := u.Blockchain.Database
 
 	err := db.View(func(txn *badger.Txn) error {
 		opts := badger.DefaultIteratorOptions
@@ -73,10 +65,7 @@ func (utxoSet UTXOSet) FindUnspentTxO(pubKeyHash []byte) []TxOutput {
 
 		for it.Seek(utxoPrefix); it.ValidForPrefix(utxoPrefix); it.Next() {
 			item := it.Item()
-			err := item.Value(func(val []byte) error {
-				v = val
-				return nil
-			})
+			v, err := item.Value()
 			HandleError(err)
 			outs := DeserializeOutputs(v)
 
@@ -94,8 +83,8 @@ func (utxoSet UTXOSet) FindUnspentTxO(pubKeyHash []byte) []TxOutput {
 	return UTXOs
 }
 
-func (utxoSet UTXOSet) CountTransactions() int {
-	db := utxoSet.Blockchain.Database
+func (u UTXOSet) CountTransactions() int {
+	db := u.Blockchain.Database
 	counter := 0
 
 	err := db.View(func(txn *badger.Txn) error {
@@ -115,12 +104,12 @@ func (utxoSet UTXOSet) CountTransactions() int {
 	return counter
 }
 
-func (utxoSet UTXOSet) Reindex() {
-	db := utxoSet.Blockchain.Database
+func (u UTXOSet) Reindex() {
+	db := u.Blockchain.Database
 
-	utxoSet.DeleteByPrefix(utxoPrefix)
+	u.DeleteByPrefix(utxoPrefix)
 
-	UTXO := utxoSet.Blockchain.FindUnspentTxO()
+	UTXO := u.Blockchain.FindUnspentTxO()
 
 	err := db.Update(func(txn *badger.Txn) error {
 		for txId, outs := range UTXO {
@@ -140,8 +129,6 @@ func (utxoSet UTXOSet) Reindex() {
 }
 
 func (u *UTXOSet) Update(block *Block) {
-	var v []byte
-
 	db := u.Blockchain.Database
 
 	err := db.Update(func(txn *badger.Txn) error {
@@ -152,10 +139,7 @@ func (u *UTXOSet) Update(block *Block) {
 					inID := append(utxoPrefix, in.ID...)
 					item, err := txn.Get(inID)
 					HandleError(err)
-					err = item.Value(func(val []byte) error {
-						v = val
-						return nil
-					})
+					v, err := item.Value()
 					HandleError(err)
 
 					outs := DeserializeOutputs(v)

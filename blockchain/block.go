@@ -28,7 +28,7 @@ func (block *Block) HashTransaction() []byte {
 	return txHash[:]
 }
 
-func createBlock(txs []*Transaction, prevHash []byte) *Block {
+func CreateBlock(txs []*Transaction, prevHash []byte) *Block {
 	block := &Block{[]byte{}, txs, prevHash, 0} // create a block with an empty hash
 	pow := NewProof(block)
 
@@ -41,8 +41,8 @@ func createBlock(txs []*Transaction, prevHash []byte) *Block {
 }
 
 // The Genesis block is the first block of a Blockchain
-func genesis(coinbase *Transaction) *Block {
-	return createBlock([]*Transaction{coinbase}, []byte{})
+func Genesis(coinbase *Transaction) *Block {
+	return CreateBlock([]*Transaction{coinbase}, []byte{})
 }
 
 func (block *Block) Serialize() []byte {

@@ -58,14 +58,14 @@ func (wallets *Wallets) LoadFile() error {
 
 	fileContent, err := ioutil.ReadFile(walletFile)
 	if err != nil {
-		log.Panic(err)
+		return err
 	}
 
 	gob.Register(elliptic.P256())
 	decoder := gob.NewDecoder(bytes.NewReader(fileContent))
 	err = decoder.Decode(&ws)
 	if err != nil {
-		log.Panic(err)
+		return err
 	}
 
 	wallets.Wallets = ws.Wallets

@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"runtime"
 
@@ -36,7 +37,7 @@ func DbExists() bool {
 }
 
 func OpenDatabase() *badger.DB {
-	opts := badger.DefaultOptions("")
+	opts := badger.DefaultOptions
 	opts.Dir = dbPath
 	opts.ValueDir = dbPath
 
@@ -45,7 +46,30 @@ func OpenDatabase() *badger.DB {
 	return db
 }
 
-func InitBlockchain(adress string) *Blockchain {
+func ContinueBlockchain(address string) *Blockchain {
+	if DbExists() == false {
+		fmt.Println("No existing blockchain found, create one!")
+		runtime.Goexit()
+	}
+
+	var lastHash []byte
+
+	db := OpenDatabase()
+
+	err := db.Update(func(txn *badger.Txn) error {
+		item, err := txn.Get([]byte("lh"))
+		HandleError(err)
+		lastHash, err = item.Value()
+		return err
+	})
+
+	HandleError(err)
+
+	return &Blockchain{lastHash, db}
+
+}
+
+func InitBlockchain(address string) *Blockchain {
 	if DbExists() {
 		fmt.Println("Blockchain already exists")
 		runtime.Goexit()
@@ -58,64 +82,42 @@ func InitBlockchain(adress string) *Blockchain {
 	// Update lets make Read and Write transactions into the database
 	// We are sending an enclosure which takes in a pointer to a badger transaction
 	err := db.Update(func(txn *badger.Txn) error {
-		cbtx := CoinbaseTx(adress, genesisData)
-		genesis := genesis(cbtx)
+		cbtx := CoinbaseTx(address, genesisData)
+		genesis := Genesis(cbtx)
 		fmt.Println("Genesis created")
 		err := txn.Set(genesis.Hash, genesis.Serialize())
 		HandleError(err)
 		err = txn.Set([]byte("lh"), genesis.Hash)
 
 		lastHash = genesis.Hash
-
 		return err
+
 	})
 
 	HandleError(err)
 
 	return &Blockchain{lastHash, db}
-}
-
-func ContinueBlockchain(address string) *Blockchain {
-	if DbExists() == false {
-		fmt.Println("Blockchain already exists")
-		runtime.Goexit()
-	}
-
-	var lastHash []byte
-
-	db := OpenDatabase()
-
-	err := db.Update(func(txn *badger.Txn) error {
-		item, err := txn.Get([]byte("lh"))
-		HandleError(err)
-		err = item.Value(func(val []byte) error {
-			lastHash = val
-			return nil
-		})
-		return err
-	})
-
-	HandleError(err)
-
-	return &Blockchain{lastHash, db}
-
 }
 
 func (chain *Blockchain) AddBlock(transactions []*Transaction) *Block {
 	var lastHash []byte
 
+	for _, tx := range transactions {
+		if !chain.VerifyTransaction(tx) {
+			log.Panic("Invalid Transaction")
+		}
+	}
+
 	err := chain.Database.View(func(txn *badger.Txn) error {
 		item, err := txn.Get([]byte("lh"))
 		HandleError(err)
-		err = item.Value(func(val []byte) error {
-			lastHash = val
-			return nil
-		})
+		lastHash, err = item.Value()
+
 		return err
 	})
 	HandleError(err)
 
-	newBlock := createBlock(transactions, lastHash)
+	newBlock := CreateBlock(transactions, lastHash)
 
 	err = chain.Database.Update(func(txn *badger.Txn) error {
 		err = txn.Set(newBlock.Hash, newBlock.Serialize())
@@ -142,11 +144,7 @@ func (iter *BlockchainIterator) Next() *Block {
 	err := iter.Database.View(func(txn *badger.Txn) error {
 		item, err := txn.Get(iter.CurrentHash)
 		HandleError(err)
-		var encodedBlock []byte
-		err = item.Value(func(val []byte) error {
-			encodedBlock = val
-			return nil
-		})
+		encodedBlock, err := item.Value()
 
 		block = Deserialize(encodedBlock)
 
@@ -213,7 +211,7 @@ func (chain *Blockchain) FindTransaction(ID []byte) (Transaction, error) {
 		block := iter.Next()
 
 		for _, tx := range block.Transactions {
-			if bytes.Compare(tx.ID, ID) == 0 {
+			if bytes.Equal(tx.ID, ID) {
 				return *tx, nil
 			}
 		}
@@ -227,13 +225,28 @@ func (chain *Blockchain) FindTransaction(ID []byte) (Transaction, error) {
 }
 
 func (chain *Blockchain) SignTransaction(tx *Transaction, privKey ecdsa.PrivateKey) {
-	prevTxs := chain.GetPreviousTransactions(tx)
+	prevTxs := make(map[string]Transaction)
 
+	for _, in := range tx.Inputs {
+		prevTX, err := chain.FindTransaction(in.ID)
+		HandleError(err)
+		prevTxs[hex.EncodeToString(prevTX.ID)] = prevTX
+	}
 	tx.Sign(privKey, prevTxs)
 }
 
 func (chain *Blockchain) VerifyTransaction(tx *Transaction) bool {
-	prevTxs := chain.GetPreviousTransactions(tx)
+	if tx.IsCoinbase() {
+		return true
+	}
+
+	prevTxs := make(map[string]Transaction)
+
+	for _, in := range tx.Inputs {
+		prevTX, err := chain.FindTransaction(in.ID)
+		HandleError(err)
+		prevTxs[hex.EncodeToString(prevTX.ID)] = prevTX
+	}
 
 	return tx.Verify(prevTxs)
 }

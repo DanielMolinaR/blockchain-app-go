@@ -21,6 +21,7 @@ func (cli *CommandLine) printUsage() {
 	fmt.Println(" printchain - Prints the blocks in the chain")
 	fmt.Println(" send -from FROM -to TO -amount AMOUNT - Send amount of coins")
 	fmt.Println(" createwallet - Creates a new Wallet")
+	fmt.Println(" reindexutxo - Rebuilds the UTXO set")
 	fmt.Println(" listaddresses - Lists the addresses in our wallet file")
 }
 
@@ -34,7 +35,7 @@ func (cli *CommandLine) validateArgs() {
 func (cli *CommandLine) reindexUTXO() {
 	chain := blockchain.ContinueBlockchain("")
 	defer chain.Database.Close()
-	UTXOSet := blockchain.UTXOSet{chain}
+	UTXOSet := blockchain.UTXOSet{Blockchain: chain}
 	UTXOSet.Reindex()
 
 	count := UTXOSet.CountTransactions()
@@ -87,7 +88,7 @@ func (cli *CommandLine) createBlockchain(address string) {
 	chain := blockchain.InitBlockchain(address)
 	chain.Database.Close()
 
-	UTXOSet := blockchain.UTXOSet{chain}
+	UTXOSet := blockchain.UTXOSet{Blockchain: chain}
 	UTXOSet.Reindex()
 
 	fmt.Println("Finished!")
@@ -117,7 +118,7 @@ func (cli *CommandLine) send(from, to string, amount int) {
 	validateAddress(from)
 
 	chain := blockchain.ContinueBlockchain(from)
-	utxoSet := blockchain.UTXOSet{chain}
+	utxoSet := blockchain.UTXOSet{Blockchain: chain}
 	defer chain.Database.Close()
 
 	tx := blockchain.NewTransaction(from, to, amount, &utxoSet)
