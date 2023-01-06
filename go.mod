@@ -2,27 +2,17 @@ module github.com/blockchain-app-go
 
 go 1.18
 
-require github.com/dgraph-io/badger v1.6.2
-
-require github.com/mr-tron/base58 v1.2.0 // indirect
+require (
+	github.com/dgraph-io/badger v1.5.4
+	github.com/mr-tron/base58 v1.1.0
+	golang.org/x/crypto v0.0.0-20181030102418-4d3f4d9ffa16
+)
 
 require (
-	github.com/AndreasBriese/bbloom v0.0.0-20190825152654-46b345b51c96 // indirect
-	github.com/cespare/xxhash v1.1.0 // indirect
-	github.com/cespare/xxhash/v2 v2.1.1 // indirect
-	github.com/dgraph-io/badger/v3 v3.2103.5 // indirect
-	github.com/dgraph-io/ristretto v0.1.1 // indirect
-	github.com/dustin/go-humanize v1.0.0 // indirect
-	github.com/gogo/protobuf v1.3.2 // indirect
-	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b // indirect
-	github.com/golang/groupcache v0.0.0-20190702054246-869f871628b6 // indirect
-	github.com/golang/protobuf v1.3.1 // indirect
-	github.com/golang/snappy v0.0.3 // indirect
-	github.com/google/flatbuffers v1.12.1 // indirect
-	github.com/klauspost/compress v1.12.3 // indirect
-	github.com/pkg/errors v0.9.1 // indirect
-	go.opencensus.io v0.22.5 // indirect
-	golang.org/x/crypto v0.4.0
-	golang.org/x/net v0.3.0 // indirect
-	golang.org/x/sys v0.3.0 // indirect
+	github.com/AndreasBriese/bbloom v0.0.0-20180913140656-343706a395b7 // indirect
+	github.com/dgryski/go-farm v0.0.0-20180109070241-2de33835d102 // indirect
+	github.com/golang/protobuf v1.2.0 // indirect
+	github.com/pkg/errors v0.8.0 // indirect
+	golang.org/x/net v0.0.0-20181023162649-9b4f9f5ad519 // indirect
+	golang.org/x/sys v0.4.0 // indirect
 )
