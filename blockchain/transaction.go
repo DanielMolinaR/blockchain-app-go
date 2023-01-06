@@ -48,7 +48,7 @@ func (tx *Transaction) Hash() []byte {
 
 func CoinbaseTx(to, data string) *Transaction {
 	if data == "" {
-		randData := make([]byte, 20)
+		randData := make([]byte, 24)
 		_, err := rand.Read(randData)
 		HandleError(err)
 
@@ -56,7 +56,7 @@ func CoinbaseTx(to, data string) *Transaction {
 	}
 
 	txIn := TxInput{[]byte{}, -1, nil, []byte(data)} // Since is not referecing to any Output the ID is empty and the OUT int -1
-	txOut := NewTxOutput(100, to)
+	txOut := NewTxOutput(20, to)
 
 	tx := Transaction{nil, []TxInput{txIn}, []TxOutput{*txOut}}
 	tx.ID = tx.Hash()
