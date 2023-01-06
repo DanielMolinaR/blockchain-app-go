@@ -11,7 +11,7 @@
 - [x] Persistance
 - [x] Digital Signatures
 - [x] UTXO Persintance layer
-- [ ] Merkle Tree
+- [x] Merkle Tree
 - [ ] Network Module
 
 ## Merkle tree
