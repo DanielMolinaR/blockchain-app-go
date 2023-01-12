@@ -62,7 +62,9 @@ go run main.go send -from {wallet_address_1} -to {wallet_address_2} -amount 10 -
 go run main.go getbalance --address {wallet_address}
 <br>
 go run main.go printchain
-<br>
-
-
+<br><br>
 </code>
+
+## Future work
+
+Future implementations of this project with PoS will come as well as a decentralized approach
