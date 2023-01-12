@@ -4,13 +4,16 @@ import (
 	"bytes"
 	"encoding/gob"
 	"log"
+	"time"
 )
 
 type Block struct {
+	Timestamp    int64          // Unique block ID
 	Hash         []byte         // hash of the block
 	Transactions []*Transaction // Data stored in the block
 	PrevHash     []byte         // Previous block's hash in the chain
 	Nonce        int
+	Height       int
 }
 
 // Method to provide an unique representation to all the transactions from the block combined
@@ -26,8 +29,8 @@ func (block *Block) HashTransaction() []byte {
 	return tree.RootNode.Data
 }
 
-func CreateBlock(txs []*Transaction, prevHash []byte) *Block {
-	block := &Block{[]byte{}, txs, prevHash, 0} // create a block with an empty hash
+func CreateBlock(txs []*Transaction, prevHash []byte, height int) *Block {
+	block := &Block{time.Now().Unix(), []byte{}, txs, prevHash, 0, height} // create a block with an empty hash
 	pow := NewProof(block)
 
 	nonce, hash := pow.Run()
@@ -40,7 +43,7 @@ func CreateBlock(txs []*Transaction, prevHash []byte) *Block {
 
 // The Genesis block is the first block of a Blockchain
 func Genesis(coinbase *Transaction) *Block {
-	return CreateBlock([]*Transaction{coinbase}, []byte{})
+	return CreateBlock([]*Transaction{coinbase}, []byte{}, 0)
 }
 
 func (block *Block) Serialize() []byte {

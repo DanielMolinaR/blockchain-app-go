@@ -46,6 +46,15 @@ func (tx *Transaction) Hash() []byte {
 	return hash[:]
 }
 
+func DeserializeTransaction(data []byte) Transaction {
+	var transaction Transaction
+
+	decoder := gob.NewDecoder(bytes.NewReader(data))
+	err := decoder.Decode(&transaction)
+	HandleError(err)
+	return transaction
+}
+
 func CoinbaseTx(to, data string) *Transaction {
 	if data == "" {
 		randData := make([]byte, 24)
@@ -64,20 +73,15 @@ func CoinbaseTx(to, data string) *Transaction {
 	return &tx
 }
 
-func NewTransaction(from, to string, amount int, utxoSet *UTXOSet) *Transaction {
+func NewTransaction(w *wallet.Wallet, to string, amount int, UTXO *UTXOSet) *Transaction {
 	var inputs []TxInput
 	var outputs []TxOutput
 
-	wallets, err := wallet.CreateWallets()
-	HandleError(err)
-
-	w := wallets.GetWallet(from)
 	pubKeyHash := wallet.PublicKeyHash(w.PublicKey)
-
-	accumulated, validOutputs := utxoSet.FindSpendableOutputs(pubKeyHash, amount)
+	accumulated, validOutputs := UTXO.FindSpendableOutputs(pubKeyHash, amount)
 
 	if accumulated < amount {
-		log.Panic("Error: Not enough funds")
+		log.Panic("Error: not enough funds")
 	}
 
 	for txid, outs := range validOutputs {
@@ -90,6 +94,8 @@ func NewTransaction(from, to string, amount int, utxoSet *UTXOSet) *Transaction 
 		}
 	}
 
+	from := fmt.Sprintf("%s", w.Address())
+
 	outputs = append(outputs, *NewTxOutput(amount, to))
 
 	if accumulated > amount {
@@ -98,7 +104,7 @@ func NewTransaction(from, to string, amount int, utxoSet *UTXOSet) *Transaction 
 
 	tx := Transaction{nil, inputs, outputs}
 	tx.ID = tx.Hash()
-	utxoSet.Blockchain.SignTransaction(&tx, w.PrivateKey)
+	UTXO.Blockchain.SignTransaction(&tx, w.PrivateKey)
 
 	return &tx
 }

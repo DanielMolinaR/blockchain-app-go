@@ -10,18 +10,18 @@ import (
 	"os"
 )
 
-const walletFile = "./tmp/wallets.data"
+const walletFile = "./tmp/wallets_%s.data" // %s is used for multiple wallets differencate by ids
 
 type Wallets struct {
 	Wallets map[string]*Wallet
 }
 
-func CreateWallets() (*Wallets, error) {
+func CreateWallets(nodeId string) (*Wallets, error) {
 	wallets := Wallets{}
 
 	wallets.Wallets = make(map[string]*Wallet)
 
-	err := wallets.LoadFile()
+	err := wallets.LoadFile(nodeId)
 
 	return &wallets, err
 }
@@ -49,7 +49,9 @@ func (wallets Wallets) GetWallet(address string) Wallet {
 	return *wallets.Wallets[address]
 }
 
-func (wallets *Wallets) LoadFile() error {
+func (wallets *Wallets) LoadFile(nodeId string) error {
+	walletFile := fmt.Sprintf(walletFile, nodeId)
+
 	if _, err := os.Stat(walletFile); os.IsNotExist(err) {
 		return err
 	}
@@ -73,8 +75,9 @@ func (wallets *Wallets) LoadFile() error {
 	return nil
 }
 
-func (wallets *Wallets) SaveFile() {
+func (wallets *Wallets) SaveFile(nodeId string) {
 	var content bytes.Buffer
+	walletFile := fmt.Sprintf(walletFile, nodeId)
 
 	gob.Register(elliptic.P256()) // It is used to encode the buffer into the file
 
